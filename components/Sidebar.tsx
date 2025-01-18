@@ -13,7 +13,6 @@ import { PlusCircle, Search, Calendar, CalendarDays, Hash, ChevronDown, MoreHori
 import { useTaskContext } from "../contexts/TaskContext"
 import { TaskForm } from "./TaskForm"
 import { ProjectForm } from "./ProjectForm"
-
 export default function Sidebar() {
   const { projects, activeView, setActiveView, deleteProject } = useTaskContext()
 
@@ -82,7 +81,7 @@ export default function Sidebar() {
               <ProjectForm />
             </div>
             <div className="space-y-1">
-              {projects.map((project) => (
+              {Array.isArray(projects) ? projects.map((project) => (
                 <div key={project.id} className="flex items-center group">
                   <Button
                     variant="ghost"
@@ -115,7 +114,7 @@ export default function Sidebar() {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
-              ))}
+              )) : null}
             </div>
           </div>
         </div>
@@ -123,4 +122,3 @@ export default function Sidebar() {
     </div>
   )
 }
-

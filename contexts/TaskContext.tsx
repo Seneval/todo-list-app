@@ -40,11 +40,14 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
           fetch('/api/projects')
         ]);
         
+        if (!tasksRes.ok) throw new Error('Failed to fetch tasks');
+        if (!projectsRes.ok) throw new Error('Failed to fetch projects');
+        
         const tasksData = await tasksRes.json();
         const projectsData = await projectsRes.json();
         
-        setTasks(tasksData);
-        setProjects(projectsData);
+        setTasks(tasksData || []);
+        setProjects(projectsData || []);
       } catch (error) {
         console.error('Error loading data:', error);
         toast({
@@ -161,11 +164,15 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
         })
       });
       
-      const newProject = await response.json();
+      const responseData = await response.json();
+      if (!responseData?.id) {
+        throw new Error('Invalid project data received from server');
+      }
+      
       const now = new Date();
       setProjects(prev => [...prev, { 
         ...projectData, 
-        id: newProject.id.toString(),
+        id: responseData.id.toString(),
         taskCount: 0,
         createdAt: now,
         updatedAt: now

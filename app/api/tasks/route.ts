@@ -1,38 +1,94 @@
-import { NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { NextResponse } from 'next/server'
+import { createTask, getTasks, toggleTask, supabase } from '@/lib/db/supabase'
 
-// Get all tasks
-export async function GET() {
-  const tasks = db.prepare('SELECT * FROM tasks').all();
-  return NextResponse.json(tasks);
-}
-
-// Create new task
 export async function POST(request: Request) {
-  const { text, projectId } = await request.json();
+  const { projectId, text } = await request.json()
   
-  const stmt = db.prepare('INSERT INTO tasks (text, project_id) VALUES (?, ?)');
-  const result = stmt.run(text, projectId);
-  
-  return NextResponse.json({ id: result.lastInsertRowid });
+  try {
+    const task = await createTask(projectId, text)
+    if (!task) {
+      throw new Error('Failed to create task')
+    }
+    
+    // Transform to frontend format
+    return NextResponse.json({
+      id: task.id.toString(),
+      title: task.text,
+      projectId: task.project_id?.toString(),
+      completed: task.completed || false,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    })
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Failed to create task' },
+      { status: 500 }
+    )
+  }
 }
 
-// Update task
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const projectId = searchParams.get('projectId')
+
+  try {
+    const tasks = await getTasks(projectId ? Number(projectId) : undefined)
+    return NextResponse.json(tasks?.map(task => ({
+      id: task.id.toString(),
+      title: task.text,
+      projectId: task.project_id?.toString(),
+      completed: task.completed || false,
+      createdAt: task.created_at,
+      updatedAt: task.updated_at
+    })) || [])
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Failed to fetch tasks' },
+      { status: 500 }
+    )
+  }
+}
+
 export async function PUT(request: Request) {
-  const { id, text, completed } = await request.json();
+  const { id, completed } = await request.json()
   
-  const stmt = db.prepare('UPDATE tasks SET text = ?, completed = ? WHERE id = ?');
-  stmt.run(text, completed, id);
-  
-  return NextResponse.json({ success: true });
+  try {
+    const task = await toggleTask(id, completed)
+    if (!task) {
+      throw new Error('Failed to update task')
+    }
+    
+    return NextResponse.json({
+      id: task.id.toString(),
+      title: task.text,
+      projectId: task.project_id?.toString(),
+      completed: task.completed,
+      createdAt: task.created_at,
+      updatedAt: task.updated_at
+    })
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Failed to update task' },
+      { status: 500 }
+    )
+  }
 }
 
-// Delete task
 export async function DELETE(request: Request) {
-  const { id } = await request.json();
+  const { id } = await request.json()
   
-  const stmt = db.prepare('DELETE FROM tasks WHERE id = ?');
-  stmt.run(id);
-  
-  return NextResponse.json({ success: true });
+  try {
+    const { error } = await supabase
+      .from('tasks')
+      .delete()
+      .eq('id', id)
+    
+    if (error) throw error
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Failed to delete task' },
+      { status: 500 }
+    )
+  }
 }

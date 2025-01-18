@@ -1,38 +1,97 @@
-import { NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { NextResponse } from 'next/server'
+import { createProject, getProjects, supabase } from '@/lib/db/supabase'
 
-// Get all projects
-export async function GET() {
-  const projects = db.prepare('SELECT * FROM projects').all();
-  return NextResponse.json(projects);
-}
-
-// Create new project
 export async function POST(request: Request) {
-  const { name } = await request.json();
+  const { name } = await request.json()
   
-  const stmt = db.prepare('INSERT INTO projects (name) VALUES (?)');
-  const result = stmt.run(name);
-  
-  return NextResponse.json({ id: result.lastInsertRowid });
+  try {
+    const project = await createProject(name)
+    if (!project) {
+      throw new Error('Failed to create project')
+    }
+    
+    // Transform to frontend format
+    return NextResponse.json({
+      id: project.id.toString(),
+      name: project.name,
+      taskCount: 0,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    })
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Failed to create project' },
+      { status: 500 }
+    )
+  }
 }
 
-// Update project
+export async function GET() {
+  try {
+    const projects = await getProjects()
+    // Transform to frontend format
+    const formattedProjects = projects.map(project => ({
+      id: project.id.toString(),
+      name: project.name,
+      taskCount: project.task_count || 0,
+      createdAt: project.created_at,
+      updatedAt: project.updated_at
+    }))
+    return NextResponse.json(formattedProjects)
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Failed to fetch projects' },
+      { status: 500 }
+    )
+  }
+}
+
 export async function PUT(request: Request) {
-  const { id, name } = await request.json();
+  const { id, name } = await request.json()
   
-  const stmt = db.prepare('UPDATE projects SET name = ? WHERE id = ?');
-  stmt.run(name, id);
-  
-  return NextResponse.json({ success: true });
+  try {
+    const { data, error } = await supabase
+      .from('projects')
+      .update({ name })
+      .eq('id', id)
+      .select()
+    
+    if (error) throw error
+    if (!data?.[0]) throw new Error('Project not found')
+    // Transform to frontend format
+    return NextResponse.json({
+      id: data[0].id.toString(),
+      name: data[0].name,
+      taskCount: data[0].task_count || 0,
+      createdAt: data[0].created_at,
+      updatedAt: data[0].updated_at
+    })
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Failed to update project' },
+      { status: 500 }
+    )
+  }
 }
 
-// Delete project
 export async function DELETE(request: Request) {
-  const { id } = await request.json();
+  const { id } = await request.json()
   
-  const stmt = db.prepare('DELETE FROM projects WHERE id = ?');
-  stmt.run(id);
-  
-  return NextResponse.json({ success: true });
+  try {
+    const { error } = await supabase
+      .from('projects')
+      .delete()
+      .eq('id', id)
+    
+    if (error) throw error
+    return NextResponse.json({ 
+      success: true,
+      id: id.toString() 
+    })
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Failed to delete project' },
+      { status: 500 }
+    )
+  }
 }
